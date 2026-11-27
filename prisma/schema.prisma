@@ -1,0 +1,148 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum PropertyType {
+  APARTMENT
+  VILLA
+  HOUSE
+  PLOT
+  COMMERCIAL
+}
+
+enum ListingType {
+  SALE
+  RENT
+}
+
+enum InquiryStatus {
+  PENDING
+  CONTACTED
+  CLOSED
+}
+
+model User {
+  id           String         @id @default(uuid())
+  name         String
+  email        String         @unique
+  phone        String?
+  password     String
+  role         UserRole       @default(USER)
+  properties   Property[]
+  inquiries    Inquiry[]
+  saved        SavedProperty[]
+  refreshTokens RefreshToken[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([createdAt])
+}
+
+model Property {
+  id           String       @id @default(uuid())
+  title        String
+  description  String       @db.Text
+  price        Decimal      @db.Decimal(14, 2)
+  city         String
+  locality     String
+  address      String?
+  propertyType PropertyType
+  listingType  ListingType
+  bedrooms     Int
+  bathrooms    Int
+  area         Float
+  furnishing   String?
+  latitude     Float?
+  longitude    Float?
+  isActive     Boolean      @default(true)
+
+  ownerId      String
+  owner        User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  images       PropertyImage[]
+  inquiries    Inquiry[]
+  saved        SavedProperty[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([city, isActive])
+  @@index([propertyType, isActive])
+  @@index([listingType, isActive])
+  @@index([price])
+  @@index([bedrooms])
+  @@index([createdAt, id])
+  @@index([city, propertyType, price])
+  @@index([isActive, createdAt(sort: Desc), id])
+  @@index([isActive, city, createdAt(sort: Desc), id])
+  @@index([isActive, price(sort: Desc), id], map: "Property_isActive_price_desc_id_idx")
+  @@index([isActive, price, id], map: "Property_isActive_price_asc_id_idx")
+  @@index([isActive, propertyType, listingType, bedrooms, price], map: "Property_filters_idx")
+  @@index([ownerId])
+}
+
+model PropertyImage {
+  id         String   @id @default(uuid())
+  imageUrl   String
+  publicId   String?
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([propertyId])
+}
+
+model Inquiry {
+  id         String        @id @default(uuid())
+  message    String        @db.Text
+  status     InquiryStatus @default(PENDING)
+
+  buyerId    String
+  propertyId String
+
+  buyer      User          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  property   Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime      @default(now())
+
+  @@unique([buyerId, propertyId])
+  @@index([buyerId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([propertyId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model SavedProperty {
+  id         String   @id @default(uuid())
+  userId     String
+  propertyId String
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, propertyId])
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+}
